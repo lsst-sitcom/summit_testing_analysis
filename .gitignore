@@ -19,3 +19,10 @@ pytest_session.txt
 .cache/
 .pytest_cache
 .coverage
+.pre-commit-config.yaml
+.flake8
+.isort.cfg
+.mypy.ini
+
+# pypi
+*.egg-info/
