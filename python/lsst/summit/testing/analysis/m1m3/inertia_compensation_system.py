@@ -87,7 +87,7 @@ class InertiaCompensationSystemAnalysis:
         return result
 
 
-def get_tma_slew_event():
+def get_tma_slew_event(day_obs, seq_number):
     """
     Retrieve Telescope Mount Assembly (TMA) slew events within a specified time
     range.
@@ -111,35 +111,18 @@ def get_tma_slew_event():
     the specified day of observation (dayObs). The events are filtered to
     include only those that start after 1 second before the specified start time
     and end before 1 second after the specified end time.
-
-    Example
-    -------
-    >>>
-    >>>
-    >>>
-    """
-    events = event_maker.getEvents(day_obs_begin)
-
-    assert len(events) == 1
-    return events[0]
-
-
-def evaluate_single_slew(day_obs, seq_number):
-    """
-    Evaluates the M1M3 Inertia Compensation System in a single slew with a
-    `seqNumber` sequence number and observed during `dayObs`.
-
-    Parameters
-    ----------
-    day_obs : int
-        Observation day in the YYYYMMDD format.
-    seq_number : int
-        Sequence number associated with the slew event.
-
-    Returns
-    -------
+    
+    Returs 
+    ------
     lsst.summit.utils.tmaUtils.TMAEvent
-        A TMA slew events that occurred within the specified time range.
+        A TMA slew event that occurred within the specified time range. 
+
+    Raises
+    ------
+    ValueError
+        If no events are found for the specified time range.    
+    ValueError
+        If more than one event is found for the specified time range.
     """
     event_maker = TMAEventMaker()
 
@@ -159,8 +142,24 @@ def evaluate_single_slew(day_obs, seq_number):
     if len(single_event) == 0:
         raise ValueError(f"Could not find any events for {day_obs}. ")
 
-    return single_event[0]
+    return single_event[0]  
 
+
+def evaluate_single_slew(day_obs, seq_number):
+    """
+    Evaluates the M1M3 Inertia Compensation System in a single slew with a
+    `seqNumber` sequence number and observed during `dayObs`.
+
+    Parameters
+    ----------
+    day_obs : int
+        Observation day in the YYYYMMDD format.
+    seq_number : int
+        Sequence number associated with the slew event.
+    """
+    logger.info("Retriving TMA slew event.")
+    event = get_tma_slew_event(day_obs, seq_number)
+    
 
 if __name__ == "__main__":
     logger.info("Start")
