@@ -6,9 +6,12 @@ import numpy as np
 import pandas as pd
 from astropy import units as u
 from astropy.time import Time
-from lsst.summit.utils.efdUtils import getEfdData, makeEfdClient
+from lsst.summit.utils.efdUtils import getEfdData
 from lsst.summit.utils.tmaUtils import TMAEvent, TMAEventMaker
 
+from plots import inertia_compensation_system 
+
+# Configure the logger
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 formatter.datefmt = "%Y-%m-%d %H:%M:%S"
 
@@ -281,8 +284,9 @@ class InertiaCompensationSystemAnalysis:
         Returns:
         --------
         pandas.Series
-            A Series with custom index labels based on the column names and index
-            positions. The Series contains values from all columns of the DataFrame.
+            A Series with custom index labels based on the column names and 
+            index positions. The Series contains values from all columns of the 
+            DataFrame.
         """
         if isinstance(self.stats, pd.Series):
             self.logger.info("Stats are already packed into a Series.")
@@ -446,3 +450,5 @@ def evaluate_single_slew(day_obs, seq_number):
 if __name__ == "__main__":
     logger.info("Start")
     results = evaluate_single_slew(20230802, 38)
+    inertia_compensation_system.plot_hp_measured_data(results)
+    logger.info("End")
