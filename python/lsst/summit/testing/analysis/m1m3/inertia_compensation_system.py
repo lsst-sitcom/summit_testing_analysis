@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
 
+# TMAEventMaker needs to be instantiated only once.
+event_maker = TMAEventMaker()
+
 __all__ = ["InertiaCompensationSystemAnalysis"]
 
 
@@ -47,7 +50,7 @@ class InertiaCompensationSystemAnalysis:
         self.inner_pad = inner_pad * u.second
         self.outer_pad = outer_pad * u.second
         self.n_sigma = n_sigma
-        self.client = makeEfdClient()
+        self.client = event_maker.client
 
         # TODO: Find a better way to implement the logger inside the class
         self.logger = logger
@@ -292,16 +295,30 @@ class InertiaCompensationSystemAnalysis:
         column_prefixes = df.columns
         index_positions = df.index
 
-        # # Generate all combinations of prefixes and positions
+        # Generate all combinations of prefixes and positions
         index_prefixes = [
             f"measuredForce{stat.capitalize()}{position}"
             for stat in index_positions
             for position, _ in enumerate(column_prefixes)
         ]
 
-        # # Flatten the DataFrame and set the new index
+        # Flatten the DataFrame and set the new index
         result_series = df.stack().reset_index(drop=True)
         result_series.index = index_prefixes
+
+        # Append the event information to the Series
+        event_dict = vars(self.event)
+        event_dict = {
+            key: val
+            for key, val in event_dict.items()
+            if key in ["dayObs", "seqNum", "version"]
+        }
+
+        # Create a pandas Series from the dictionary
+        event_series = pd.Series(event_dict)
+
+        # Concatenate the two Series
+        result_series = pd.concat([event_series, result_series])
 
         # Display the resulting Series
         return result_series
@@ -372,8 +389,6 @@ def get_tma_slew_event(day_obs, seq_number):
     ValueError
         If more than one event is found for the specified time range.
     """
-    event_maker = TMAEventMaker()
-
     logger.info(f"Query events in {day_obs}")
     events = event_maker.getEvents(day_obs)
 
@@ -425,9 +440,9 @@ def evaluate_single_slew(day_obs, seq_number):
     logger.info("Pack results into a Series")
     performance_analysis.stats = performance_analysis.pack_stats_series()
 
-    print(performance_analysis.stats)
+    return performance_analysis
 
 
 if __name__ == "__main__":
     logger.info("Start")
-    evaluate_single_slew(20230802, 38)
+    results = evaluate_single_slew(20230802, 38)
