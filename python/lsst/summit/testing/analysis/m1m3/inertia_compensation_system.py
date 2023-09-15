@@ -1,15 +1,13 @@
 #!/usr/bin/python
 import logging
-import numpy as np
-import pandas as pd
-
-from astropy import units as u
-from astropy.time import Time
 from datetime import timedelta
 
+import numpy as np
+import pandas as pd
+from astropy import units as u
+from astropy.time import Time
 from lsst.summit.utils.efdUtils import getEfdData, makeEfdClient
-from lsst.summit.utils.tmaUtils import TMAEventMaker, TMAEvent
-
+from lsst.summit.utils.tmaUtils import TMAEvent, TMAEventMaker
 
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 formatter.datefmt = "%Y-%m-%d %H:%M:%S"
@@ -21,6 +19,8 @@ handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
+
+__all__ = ["InertiaCompensationSystemAnalysis"]
 
 
 class InertiaCompensationSystemAnalysis:
@@ -60,10 +60,27 @@ class InertiaCompensationSystemAnalysis:
         self.df = None
         self.stats = None
 
-    async def run(self):
-        """Performs all the measurements"""
-        self.df = self.query_dataset()
-        self.stats = self.get_stats()
+    def find_stable_region(self):
+        """
+        ToDo @b1quint: add docstring
+        """
+        az_torque = self.df["az_actual_torque"]
+        az_torque_regions = find_adjacent_true_regions(
+            np.abs(az_torque - az_torque.mean()) < self.n_sigma * az_torque.std()
+        )
+
+        el_torque = self.df["el_actual_torque"]
+        el_torque_regions = find_adjacent_true_regions(
+            np.abs(el_torque - el_torque.mean()) < self.n_sigma * el_torque.std()
+        )
+
+        stable_begin = max([reg[0] for reg in az_torque_regions + el_torque_regions])
+        stable_begin = Time(stable_begin, scale="utc")
+
+        stable_end = min([reg[-1] for reg in az_torque_regions + el_torque_regions])
+        stable_end = Time(stable_end, scale="utc")
+
+        return stable_begin, stable_end
 
     def query_dataset(self):
         """
@@ -145,6 +162,10 @@ class InertiaCompensationSystemAnalysis:
 
         return merged_df
 
+    def get_midppoint(self):
+        """Returns the halfway point between begin and end"""
+        return self.df.index[len(self.df.index) // 2]
+
     def get_stats(self):
         """
         Calculate statistics for each column in a given dataset.
@@ -152,13 +173,15 @@ class InertiaCompensationSystemAnalysis:
         Returns
         -------
         pandas.DataFrame
-            A DataFrame containing calculated statistics for each column in the dataset.
-            For each column, the statistics include minimum, maximum, and peak-to-peak values.
+            A DataFrame containing calculated statistics for each column in the
+            dataset. For each column, the statistics include minimum, maximum,
+            and peak-to-peak values.
 
         Notes
         -----
-        This function computes statistics for each column in the provided dataset. It utilizes the `get_minmax` function
-        to calculate minimum, maximum, and peak-to-peak values for each column's data.
+        This function computes statistics for each column in the provided
+        dataset. It utilizes the `get_minmax` function to calculate minimum,
+        maximum, and peak-to-peak values for each column's data.
         """
         cols = self.measured_forces_topics
         full_slew_stats = pd.DataFrame(
@@ -187,43 +210,14 @@ class InertiaCompensationSystemAnalysis:
 
         return stats
 
-    def get_midppoint(self):
-        """Returns the halfway point between begin and end"""
-        return self.df.index[len(self.df.index) // 2]
-
-    @staticmethod
-    def get_slew_minmax(s):
-        """
-        Calculate minimum, maximum, and peak-to-peak values for a data-series.
-
-        Parameters
-        ----------
-        s : pandas.Series
-            The input pandas Series containing data.
-
-        Returns
-        -------
-        pandas.Series
-            A Series containing the following calculated values for the two halves of the input Series:
-            - min: Minimum value of the Series.
-            - max: Maximum value of the Series.
-            - ptp: Peak-to-peak (ptp) value of the Series (abs(max - min)).
-        """
-        result = pd.Series(
-            data=[s.min(), s.max(), np.ptp(s)],
-            index=["min", "max", "ptp"],
-            name=s.name,
-        )
-        return result
-
     @staticmethod
     def get_stats_in_torqueless_interval(s):
         """
         Calculate statistical measures within a torqueless interval.
 
-        This static method computes descriptive statistics for a given pandas Series within
-        a torqueless interval. The torqueless interval represents a period of the data
-        analysis when no external torque is applied.
+        This static method computes descriptive statistics for a given pandas
+        Series within a torqueless interval. The torqueless interval represents
+        a period of the data analysis when no external torque is applied.
 
         Parameters:
         -----------
@@ -245,27 +239,72 @@ class InertiaCompensationSystemAnalysis:
         )
         return result
 
-    def find_stable_region(self):
+    @staticmethod
+    def get_slew_minmax(s):
         """
-        ToDo @b1quint: add docstring
+        Calculate minimum, maximum, and peak-to-peak values for a data-series.
+
+        Parameters
+        ----------
+        s : pandas.Series
+            The input pandas Series containing data.
+
+        Returns
+        -------
+        pandas.Series
+            A Series containing the following calculated values for the two
+            halves of the input Series:
+            - min: Minimum value of the Series.
+            - max: Maximum value of the Series.
+            - ptp: Peak-to-peak (ptp) value of the Series (abs(max - min)).
         """
-        az_torque = self.df["az_actual_torque"]
-        az_torque_regions = find_adjacent_true_regions(
-            np.abs(az_torque - az_torque.mean()) < self.n_sigma * az_torque.std()
+        result = pd.Series(
+            data=[s.min(), s.max(), np.ptp(s)],
+            index=["min", "max", "ptp"],
+            name=s.name,
         )
+        return result
 
-        el_torque = self.df["el_actual_torque"]
-        el_torque_regions = find_adjacent_true_regions(
-            np.abs(el_torque - el_torque.mean()) < self.n_sigma * el_torque.std()
-        )
+    def pack_stats_series(self):
+        """
+        Pack the stats DataFrame into a Series with custom index labels.
 
-        stable_begin = max([reg[0] for reg in az_torque_regions + el_torque_regions])
-        stable_begin = Time(stable_begin, scale="utc")
+        This method takes the DataFrame of statistics stored in the 'stats'
+        attribute of the current object and reshapes it into a Series where the
+        indexes are generated using custom labels based on the column names and
+        index positions. The resulting Series combines values from all columns
+        of the DataFrame.
 
-        stable_end = min([reg[-1] for reg in az_torque_regions + el_torque_regions])
-        stable_end = Time(stable_end, scale="utc")
+        Returns:
+        --------
+        pandas.Series
+            A Series with custom index labels based on the column names and index
+            positions. The Series contains values from all columns of the DataFrame.
+        """
+        if isinstance(self.stats, pd.Series):
+            self.logger.info("Stats are already packed into a Series.")
+            return self.stats
 
-        return stable_begin, stable_end
+        self.logger.info("Packing stats into a Series.")
+        df = self.stats.transpose()
+
+        # Define the prefix patterns
+        column_prefixes = df.columns
+        index_positions = df.index
+
+        # # Generate all combinations of prefixes and positions
+        index_prefixes = [
+            f"measuredForce{stat.capitalize()}{position}"
+            for stat in index_positions
+            for position, _ in enumerate(column_prefixes)
+        ]
+
+        # # Flatten the DataFrame and set the new index
+        result_series = df.stack().reset_index(drop=True)
+        result_series.index = index_prefixes
+
+        # Display the resulting Series
+        return result_series
 
 
 def find_adjacent_true_regions(series, min_adjacent=None):
@@ -318,8 +357,8 @@ def get_tma_slew_event(day_obs, seq_number):
     This function retrieves TMA slew events occurring between the specified
     start and end times. It uses the TMAEventMaker class to obtain events for
     the specified day of observation (dayObs). The events are filtered to
-    include only those that start after 1 second before the specified start time
-    and end before 1 second after the specified end time.
+    include only those that start after 1 second before the specified start
+    time and end before 1 second after the specified end time.
 
     Returs
     ------
@@ -382,6 +421,9 @@ def evaluate_single_slew(day_obs, seq_number):
 
     logger.info("Calculate statistics")
     performance_analysis.stats = performance_analysis.get_stats()
+
+    logger.info("Pack results into a Series")
+    performance_analysis.stats = performance_analysis.pack_stats_series()
 
     print(performance_analysis.stats)
 
