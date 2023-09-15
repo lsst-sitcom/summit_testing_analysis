@@ -8,8 +8,7 @@ from astropy import units as u
 from astropy.time import Time
 from lsst.summit.utils.efdUtils import getEfdData
 from lsst.summit.utils.tmaUtils import TMAEvent, TMAEventMaker
-
-from plots import inertia_compensation_system 
+from plots import inertia_compensation_system
 
 # Configure the logger
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -284,8 +283,8 @@ class InertiaCompensationSystemAnalysis:
         Returns:
         --------
         pandas.Series
-            A Series with custom index labels based on the column names and 
-            index positions. The Series contains values from all columns of the 
+            A Series with custom index labels based on the column names and
+            index positions. The Series contains values from all columns of the
             DataFrame.
         """
         if isinstance(self.stats, pd.Series):
