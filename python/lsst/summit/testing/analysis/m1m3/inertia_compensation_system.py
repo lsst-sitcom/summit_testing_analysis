@@ -471,7 +471,7 @@ def evaluate_m1m3_ics_single_slew(
 
 def create_logger(name: str) -> logging.Logger:
     """
-    Creates a logger object with the specified name and returns it.
+    Create a logger object with the specified name and returns it.
 
     Parameters
     ----------
