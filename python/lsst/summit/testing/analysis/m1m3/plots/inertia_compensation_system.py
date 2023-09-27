@@ -2,9 +2,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.time import Time
 
-# This import is for type hinting only and should not be used in runtime code.
-from lsst.summit.testing.analysis.m1m3.inertia_compensation_system import ICSAnalysis
-
 
 def plot_hp_data(ax: plt.Axes, data: pd.Series | list, label: str) -> list[plt.Line2D]:
     """
@@ -88,9 +85,7 @@ def mark_padded_slew_begin_end(ax: plt.Axes, begin: Time, end: Time) -> plt.Line
     return line
 
 
-def customize_hp_plot(
-    ax: plt.Axes, dataset: ICSAnalysis, lines: list[plt.Line2D]
-) -> None:
+def customize_hp_plot(ax: plt.Axes, dataset: object, lines: list[plt.Line2D]) -> None:
     """
     Customize the appearance of the hardpoint plot.
 
@@ -106,11 +101,11 @@ def customize_hp_plot(
     t_fmt = "%Y%m%d %H:%M:%S"
     ax.set_title(
         f"HP Measured Data\n "
-        f"DayObs {dataset.event.dayObs} "
-        f"SeqNum {dataset.event.seqNum} "
-        f"v{dataset.event.version}\n "
-        f"{dataset.df.index[0].strftime(t_fmt)} - "
-        f"{dataset.df.index[-1].strftime(t_fmt)}"
+        f"DayObs {dataset.event.dayObs} "  # type: ignore
+        f"SeqNum {dataset.event.seqNum} "  # type: ignore
+        f"v{dataset.event.version}\n "  # type: ignore
+        f"{dataset.df.index[0].strftime(t_fmt)} - "  # type: ignore
+        f"{dataset.df.index[-1].strftime(t_fmt)}"  # type: ignore
     )
     ax.set_xlabel("Time [UTC]")
     ax.set_ylabel("HP Measured Forces [N]")
@@ -118,7 +113,7 @@ def customize_hp_plot(
     ax.legend(ncol=4, handles=lines)
 
 
-def plot_velocity_data(ax: plt.Axes, dataset: ICSAnalysis) -> None:
+def plot_velocity_data(ax: plt.Axes, dataset: object) -> None:
     """
     Plot the azimuth and elevation velocities on the given axes.
 
@@ -129,14 +124,14 @@ def plot_velocity_data(ax: plt.Axes, dataset: ICSAnalysis) -> None:
     dataset : object
         The dataset object containing the data to be plotted and metadata.
     """
-    ax.plot(dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity")
-    ax.plot(dataset.df["el_actual_velocity"], color="teal", label="El Velocity")
+    ax.plot(dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity")  # type: ignore
+    ax.plot(dataset.df["el_actual_velocity"], color="teal", label="El Velocity")  # type: ignore
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Velocity\n [deg/s]")
     ax.legend(ncol=2)
 
 
-def plot_torque_data(ax: plt.Axes, dataset: ICSAnalysis) -> None:
+def plot_torque_data(ax: plt.Axes, dataset: object) -> None:
     """
     Plot the azimuth and elevation torques on the given axes.
 
@@ -147,8 +142,8 @@ def plot_torque_data(ax: plt.Axes, dataset: ICSAnalysis) -> None:
     dataset : object
         The dataset object containing the data to be plotted and metadata.
     """
-    ax.plot(dataset.df["az_actual_torque"], color="firebrick", label="Az Torque")
-    ax.plot(dataset.df["el_actual_torque"], color="salmon", label="El Torque")
+    ax.plot(dataset.df["az_actual_torque"], color="firebrick", label="Az Torque")  # type: ignore
+    ax.plot(dataset.df["el_actual_torque"], color="salmon", label="El Torque")  # type: ignore
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Torque\n [kN.m]")
     ax.legend(ncol=2)
@@ -209,7 +204,7 @@ def finalize_and_save_figure(fig: plt.figure, name: str) -> None:
     plt.show()
 
 
-def plot_hp_measured_data(dataset: ICSAnalysis) -> None:
+def plot_hp_measured_data(dataset: object) -> None:
     """
     Create and plot hardpoint measured data, velocity, and torque on subplots.
 
@@ -220,9 +215,9 @@ def plot_hp_measured_data(dataset: ICSAnalysis) -> None:
     """
     figure_name = (
         f"hp_measured_forces_"
-        f"{dataset.event.dayObs}_"
-        f"sn{dataset.event.seqNum}_"
-        f"v{dataset.event.version}"
+        f"{dataset.event.dayObs}_"  # type: ignore
+        f"sn{dataset.event.seqNum}_"  # type: ignore
+        f"v{dataset.event.version}"  # type: ignore
     )
 
     fig, (ax_hp, ax_tor, ax_vel) = plt.subplots(
@@ -235,13 +230,13 @@ def plot_hp_measured_data(dataset: ICSAnalysis) -> None:
     )
 
     lines = []
-    for hp in range(dataset.number_of_hardpoints):
-        topic = dataset.measured_forces_topics[hp]
-        line = plot_hp_data(ax_hp, dataset.df[topic], f"HP{hp+1}")
+    for hp in range(dataset.number_of_hardpoints):  # type: ignore
+        topic = dataset.measured_forces_topics[hp]  # type: ignore
+        line = plot_hp_data(ax_hp, dataset.df[topic], f"HP{hp+1}")  # type: ignore
         lines.extend(line)
 
-    slew_begin = Time(dataset.event.begin, scale="utc")
-    slew_end = Time(dataset.event.end, scale="utc")
+    slew_begin = Time(dataset.event.begin, scale="utc")  # type: ignore
+    slew_end = Time(dataset.event.end, scale="utc")  # type: ignore
 
     mark_slew_begin_end(ax_hp, slew_begin, slew_end)
     mark_slew_begin_end(ax_vel, slew_begin, slew_end)
@@ -249,20 +244,20 @@ def plot_hp_measured_data(dataset: ICSAnalysis) -> None:
     lines.append(line)
 
     mark_padded_slew_begin_end(
-        ax_hp, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad
+        ax_hp, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad  # type: ignore
     )
     mark_padded_slew_begin_end(
-        ax_vel, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad
+        ax_vel, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad  # type: ignore
     )
     line = mark_padded_slew_begin_end(
-        ax_tor, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad
+        ax_tor, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad  # type: ignore
     )
     lines.append(line)
 
-    stable_begin, stable_end = dataset.find_stable_region()
+    stable_begin, stable_end = dataset.find_stable_region()  # type: ignore
     stat_begin, stat_end = (
-        stable_begin + dataset.inner_pad,
-        stable_end - dataset.inner_pad,
+        stable_begin + dataset.inner_pad,  # type: ignore
+        stable_end - dataset.inner_pad,  # type: ignore
     )
 
     plot_velocity_data(ax_vel, dataset)
