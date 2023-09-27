@@ -25,10 +25,10 @@ logger.addHandler(handler)
 # TMAEventMaker needs to be instantiated only once.
 event_maker = TMAEventMaker()
 
-__all__ = ["InertiaCompensationSystemAnalysis"]
+__all__ = ["ICSAnalysis"]
 
 
-class InertiaCompensationSystemAnalysis:
+class ICSAnalysis:
     """
     Evaluate the M1M3 Inertia Compensation System's performance by
     calculating the minima, maxima and peak-to-peak values during a
@@ -62,12 +62,24 @@ class InertiaCompensationSystemAnalysis:
             f"measuredForce{i}" for i in range(self.number_of_hardpoints)
         ]
 
-        self.df = None
-        self.stats = None
+        logger.info("Query datasets")
+        self.df = self.query_dataset()
 
-    def find_stable_region(self):
+        logger.info("Calculate statistics")
+        self.stats = self.get_stats()
+
+        logger.info("Pack results into a Series")
+        self.stats = self.pack_stats_series()
+
+    def find_stable_region(self) -> tuple[Time, Time]:
         """
-        ToDo @b1quint: add docstring
+        Find the stable region of the dataset. By stable, we mean the region
+        where the torque is within n_sigma of the mean.
+
+        Returns
+        -------
+        tuple[Time, Time]:
+            The begin and end times of the stable region.
         """
         az_torque = self.df["az_actual_torque"]
         az_torque_regions = find_adjacent_true_regions(
@@ -87,9 +99,10 @@ class InertiaCompensationSystemAnalysis:
 
         return stable_begin, stable_end
 
-    def query_dataset(self):
+    def query_dataset(self) -> pd.DataFrame:
         """
-        Queries all the relevant data, resample them to have the same requency and merge them in a single dataframe.
+        Query all the relevant data, resample them to have the same requency
+        and merge them in a single dataframe.
 
         Returns
         -------
@@ -167,11 +180,11 @@ class InertiaCompensationSystemAnalysis:
 
         return merged_df
 
-    def get_midppoint(self):
-        """Returns the halfway point between begin and end"""
+    def get_midppoint(self) -> Time:
+        """Return the halfway point between begin and end."""
         return self.df.index[len(self.df.index) // 2]
 
-    def get_stats(self):
+    def get_stats(self) -> pd.DataFrame:
         """
         Calculate statistics for each column in a given dataset.
 
@@ -216,7 +229,7 @@ class InertiaCompensationSystemAnalysis:
         return stats
 
     @staticmethod
-    def get_stats_in_torqueless_interval(s):
+    def get_stats_in_torqueless_interval(s: pd.Series) -> pd.Series:
         """
         Calculate statistical measures within a torqueless interval.
 
@@ -224,13 +237,13 @@ class InertiaCompensationSystemAnalysis:
         Series within a torqueless interval. The torqueless interval represents
         a period of the data analysis when no external torque is applied.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         s : pandas.Series
             A pandas Series containing data values for analysis.
 
-        Returns:
-        --------
+        Returns
+        -------
         pandas.Series
             A pandas Series containing the following statistical measures:
             - Mean: The arithmetic mean of the data.
@@ -245,7 +258,7 @@ class InertiaCompensationSystemAnalysis:
         return result
 
     @staticmethod
-    def get_slew_minmax(s):
+    def get_slew_minmax(s: pd.Series) -> pd.Series:
         """
         Calculate minimum, maximum, and peak-to-peak values for a data-series.
 
@@ -270,7 +283,7 @@ class InertiaCompensationSystemAnalysis:
         )
         return result
 
-    def pack_stats_series(self):
+    def pack_stats_series(self) -> pd.Series:
         """
         Pack the stats DataFrame into a Series with custom index labels.
 
@@ -280,8 +293,8 @@ class InertiaCompensationSystemAnalysis:
         index positions. The resulting Series combines values from all columns
         of the DataFrame.
 
-        Returns:
-        --------
+        Returns
+        -------
         pandas.Series
             A Series with custom index labels based on the column names and
             index positions. The Series contains values from all columns of the
@@ -327,7 +340,9 @@ class InertiaCompensationSystemAnalysis:
         return result_series
 
 
-def find_adjacent_true_regions(series, min_adjacent=None):
+def find_adjacent_true_regions(
+    series: pd.Series, min_adjacent: None | int = None
+) -> list[tuple[pd.DatetimeIndex, pd.DatetimeIndex]]:
     """
     Find regions in a boolean Series containing adjacent True values.
 
@@ -342,7 +357,7 @@ def find_adjacent_true_regions(series, min_adjacent=None):
 
     Returns
     -------
-    list
+    list[tuple[pd.DatetimeIndex, pd.DatetimeIndex]]
         A list of tuples representing the start and end indices of regions
         containing more than or equal to min_adjacent adjacent True values.
     """
@@ -355,7 +370,7 @@ def find_adjacent_true_regions(series, min_adjacent=None):
     return regions
 
 
-def get_tma_slew_event(day_obs, seq_number):
+def get_tma_slew_event(day_obs: int, seq_number: int) -> TMAEvent:
     """
     Retrieve Telescope Mount Assembly (TMA) slew events within a specified time
     range.
@@ -411,9 +426,9 @@ def get_tma_slew_event(day_obs, seq_number):
     return single_event[0]
 
 
-def evaluate_single_slew(day_obs, seq_number):
+def evaluate_single_slew(day_obs: int, seq_number: int) -> ICSAnalysis:
     """
-    Evaluates the M1M3 Inertia Compensation System in a single slew with a
+    Evaluate the M1M3 Inertia Compensation System in a single slew with a
     `seqNumber` sequence number and observed during `dayObs`.
 
     Parameters
@@ -422,26 +437,22 @@ def evaluate_single_slew(day_obs, seq_number):
         Observation day in the YYYYMMDD format.
     seq_number : int
         Sequence number associated with the slew event.
+
+    Returns
+    -------
+    InertiaCompensationSystemAnalysis
+        Object containing the results of the analysis.
     """
     logger.info("Retriving TMA slew event.")
     event = get_tma_slew_event(day_obs, seq_number)
 
     logger.info("Start inertia compensation system analysis.")
-    performance_analysis = InertiaCompensationSystemAnalysis(
+    performance_analysis = ICSAnalysis(
         event,
         inner_pad=1.0,
         outer_pad=1.0,
         n_sigma=1.0,
     )
-
-    logger.info("Query datasets")
-    performance_analysis.df = performance_analysis.query_dataset()
-
-    logger.info("Calculate statistics")
-    performance_analysis.stats = performance_analysis.get_stats()
-
-    logger.info("Pack results into a Series")
-    performance_analysis.stats = performance_analysis.pack_stats_series()
 
     return performance_analysis
 

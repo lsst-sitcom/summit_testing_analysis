@@ -1,23 +1,82 @@
 import matplotlib.pyplot as plt
+import pandas as pd
 from astropy.time import Time
 
-
-def plot_hp_data(ax, topic, data, label):
-    l = ax.plot(data, "-", label=label, lw=0.5)
-    return l
+# This import is for type hinting only and should not be used in runtime code.
+from lsst.summit.testing.analysis.m1m3.inertia_compensation_system import ICSAnalysis
 
 
-def mark_slew_begin_end(ax, slew_begin, slew_end):
-    ax.axvline(slew_begin.datetime, lw=0.5, ls="--", c="k", zorder=-1)
-    l = ax.axvline(
+def plot_hp_data(ax: plt.Axes, data: pd.Series | list, label: str) -> list[plt.Line2D]:
+    """
+    Plot hardpoint data on the given axes.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._axes.Axes
+        The axes on which the data is plotted.
+    topic : str
+        The topic of the data.
+    data : Series or list
+        The data points to be plotted.
+    label : str
+        The label for the plotted data.
+
+    Returns
+    -------
+    list
+        A list containing the Line2D objects representing the plotted data
+        lines.
+    """
+    line = ax.plot(data, "-", label=label, lw=0.5)
+    return line
+
+
+def mark_slew_begin_end(ax: plt.Axes, slew_begin: Time, slew_end: Time) -> plt.Line2D:
+    """
+    Mark the beginning and the end of a slew with vertical lines on the given
+    axes.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._axes.Axes
+        The axes where the vertical lines are drawn.
+    slew_begin : astropy.time.Time
+        The slew beginning time.
+    slew_end : astropy.time.Time
+        The slew ending time.
+
+    Returns
+    -------
+    matplotlib.lines.Line2D
+        The Line2D object representing the line drawn at the slew end.
+    """
+    _ = ax.axvline(slew_begin.datetime, lw=0.5, ls="--", c="k", zorder=-1)
+    line = ax.axvline(
         slew_end.datetime, lw=0.5, ls="--", c="k", zorder=-1, label="Slew Start/Stop"
     )
-    return l
+    return line
 
 
-def mark_padded_slew_begin_end(ax, begin, end):
-    ax.axvline(begin.datetime, alpha=0.5, lw=0.5, ls="-", c="k", zorder=-1)
-    l = ax.axvline(
+def mark_padded_slew_begin_end(ax: plt.Axes, begin: Time, end: Time) -> plt.Line2D:
+    """
+    Mark the padded beginning and the end of a slew with vertical lines.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._axes.Axes
+        The axes where the vertical lines are drawn.
+    begin : astropy.time.Time
+        The padded slew beginning time.
+    end : astropy.time.Time
+        The padded slew ending time.
+
+    Returns
+    -------
+    matplotlib.lines.Line2D
+        The Line2D object representing the line drawn at the padded slew end.
+    """
+    _ = ax.axvline(begin.datetime, alpha=0.5, lw=0.5, ls="-", c="k", zorder=-1)
+    line = ax.axvline(
         end.datetime,
         alpha=0.5,
         lw=0.5,
@@ -26,10 +85,24 @@ def mark_padded_slew_begin_end(ax, begin, end):
         zorder=-1,
         label="Padded Slew Start/Stop",
     )
-    return l
+    return line
 
 
-def customize_hp_plot(ax, dataset, lines):
+def customize_hp_plot(
+    ax: plt.Axes, dataset: ICSAnalysis, lines: list[plt.Line2D]
+) -> None:
+    """
+    Customize the appearance of the hardpoint plot.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._axes.Axes
+        The axes of the plot to be customized.
+    dataset : object
+        The dataset object containing the data to be plotted and metadata.
+    lines : list
+        The list of Line2D objects representing the plotted data lines.
+    """
     t_fmt = "%Y%m%d %H:%M:%S"
     ax.set_title(
         f"HP Measured Data\n "
@@ -45,31 +118,67 @@ def customize_hp_plot(ax, dataset, lines):
     ax.legend(ncol=4, handles=lines)
 
 
-def plot_velocity_data(ax, dataset):
-    l_az_vel = ax.plot(
-        dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity"
-    )
-    l_el_vel = ax.plot(
-        dataset.df["el_actual_velocity"], color="teal", label="El Velocity"
-    )
+def plot_velocity_data(ax: plt.Axes, dataset: ICSAnalysis) -> None:
+    """
+    Plot the azimuth and elevation velocities on the given axes.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._axes.Axes
+        The axes on which the velocity data is plotted.
+    dataset : object
+        The dataset object containing the data to be plotted and metadata.
+    """
+    ax.plot(dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity")
+    ax.plot(dataset.df["el_actual_velocity"], color="teal", label="El Velocity")
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Velocity\n [deg/s]")
     ax.legend(ncol=2)
 
 
-def plot_torque_data(ax, dataset):
-    l_az_vel2 = ax.plot(
-        dataset.df["az_actual_torque"], color="firebrick", label="Az Torque"
-    )
-    l_el_vel2 = ax.plot(
-        dataset.df["el_actual_torque"], color="salmon", label="El Torque"
-    )
+def plot_torque_data(ax: plt.Axes, dataset: ICSAnalysis) -> None:
+    """
+    Plot the azimuth and elevation torques on the given axes.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes._axes.Axes
+        The axes on which the torque data is plotted.
+    dataset : object
+        The dataset object containing the data to be plotted and metadata.
+    """
+    ax.plot(dataset.df["az_actual_torque"], color="firebrick", label="Az Torque")
+    ax.plot(dataset.df["el_actual_torque"], color="salmon", label="El Torque")
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Torque\n [kN.m]")
     ax.legend(ncol=2)
 
 
-def plot_stable_region(fig, begin, end, label="", color="b"):
+def plot_stable_region(
+    fig: plt.figure, begin: Time, end: Time, label: str = "", color: str = "b"
+) -> plt.Polygon:
+    """
+    Highlight a stable region on the plot with a colored span.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure containing the axes on which the stable region is
+        highlighted.
+    begin : astropy.time.Time
+        The beginning time of the stable region.
+    end : astropy.time.Time
+        The ending time of the stable region.
+    label : str, optional
+        The label for the highlighted region.
+    color : str, optional
+        The color of the highlighted region.
+
+    Returns
+    -------
+    matplotlib.patches.Polygon
+        The Polygon object representing the highlighted region.
+    """
     for ax in fig.axes:
         span = ax.axvspan(
             begin.datetime, end.datetime, fc=color, alpha=0.1, zorder=-2, label=label
@@ -77,7 +186,17 @@ def plot_stable_region(fig, begin, end, label="", color="b"):
     return span
 
 
-def finalize_and_save_figure(fig, name):
+def finalize_and_save_figure(fig: plt.figure, name: str) -> None:
+    """
+    Finalize the appearance of the figure and save it to a file.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure to be finalized and saved.
+    name : str
+        The name of the file to which the figure is saved.
+    """
     fig.tight_layout()
     fig.savefig(
         name.replace("/", "")
@@ -90,7 +209,15 @@ def finalize_and_save_figure(fig, name):
     plt.show()
 
 
-def plot_hp_measured_data(dataset):
+def plot_hp_measured_data(dataset: ICSAnalysis) -> None:
+    """
+    Create and plot hardpoint measured data, velocity, and torque on subplots.
+
+    Parameters
+    ----------
+    dataset : object
+        The dataset object containing the data to be plotted and metadata.
+    """
     figure_name = (
         f"hp_measured_forces_"
         f"{dataset.event.dayObs}_"
@@ -110,7 +237,7 @@ def plot_hp_measured_data(dataset):
     lines = []
     for hp in range(dataset.number_of_hardpoints):
         topic = dataset.measured_forces_topics[hp]
-        line = plot_hp_data(ax_hp, topic, dataset.df[topic], f"HP{hp+1}")
+        line = plot_hp_data(ax_hp, dataset.df[topic], f"HP{hp+1}")
         lines.extend(line)
 
     slew_begin = Time(dataset.event.begin, scale="utc")
