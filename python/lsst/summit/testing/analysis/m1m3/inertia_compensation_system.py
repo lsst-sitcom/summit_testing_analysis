@@ -410,6 +410,9 @@ def get_tma_slew_event(day_obs: int, seq_number: int) -> TMAEvent:
     logger.info(f"Query events in {day_obs}")
     events = event_maker.getEvents(day_obs)
 
+    if len(events) == 0:
+        raise ValueError(f"Could not find any events for {day_obs}. ")
+
     logger.info(f"Found {len(events)} events.")
     single_event = [e for e in events if e.seqNum == seq_number]
 
@@ -421,7 +424,10 @@ def get_tma_slew_event(day_obs: int, seq_number: int) -> TMAEvent:
         )
 
     if len(single_event) == 0:
-        raise ValueError(f"Could not find any events for {day_obs}. ")
+        raise ValueError(
+            f"Could not find any events for {day_obs} day_obs "
+            f" that match {seq_number} seq_number."
+        )
 
     return single_event[0]
 
