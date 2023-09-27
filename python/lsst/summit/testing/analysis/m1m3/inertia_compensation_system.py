@@ -429,6 +429,7 @@ def get_tma_slew_event(day_obs: int, seq_number: int) -> TMAEvent:
             f" that match {seq_number} seq_number."
         )
 
+    assert single_event[0].seq_num == seq_number
     return single_event[0]
 
 
