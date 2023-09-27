@@ -35,3 +35,14 @@ Contributing
     pre-commit install 
     pre-commit run --all-files
 
+If you are working on USDF, you will not have permissions to install the package.
+Instead, you will have to clone the repository and install it locally using EUPS:
+
+.. code-block:: bash
+
+    PATH_TO_MY_REPO="/the/path/for/my/repos"
+    git clone https://github.com/lsst-ts/ts_pre_commit_conf ${PATH_TO_MY_REPO}/ts_pre_commit_conf
+    setup -r ${PATH_TO_MY_REPO}/ts_pre_commit_conf -t $USER
+    generate_pre_commit_conf
+    pre-commit install 
+    pre-commit run --all-files
