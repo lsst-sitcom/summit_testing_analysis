@@ -6,12 +6,10 @@ import numpy as np
 import pandas as pd
 from astropy import units as u
 from astropy.time import Time
+from lsst.summit.testing.analysis.utils import create_logger
 from lsst.summit.utils.efdUtils import getEfdData
 from lsst.summit.utils.tmaUtils import TMAEvent, TMAEventMaker
 from plots import inertia_compensation_system
-
-# TMAEventMaker needs to be instantiated only once.
-event_maker = TMAEventMaker()
 
 __all__ = ["M1M3ICSAnalysis"]
 
@@ -27,6 +25,14 @@ class M1M3ICSAnalysis:
     ----------
     event : `lsst.summit.utils.tmaUtils.TMAEvent`
         Abtract representation of a slew event.
+    inner_pad : float, optional
+        Time padding inside the stable time window of the slew.
+    outer_pad : float, optional
+        Time padding outside the slew time window.
+    n_sigma : float, optional
+        Number of standard deviations to use for the stable region.
+    log : logging.Logger, optional
+        Logger object to use for logging messages.
     """
 
     def __init__(
@@ -35,12 +41,13 @@ class M1M3ICSAnalysis:
         inner_pad: float = 0.0,
         outer_pad: float = 0.0,
         n_sigma: float = 1.0,
-        logger: logging.Logger | None = None,
+        log: logging.Logger | None = None,
     ):
-        if logger is None:
-            self._make_logger()
-        else:
-            self.logger = logger
+        self.log = (
+            log.getChild(type(self).__name__)
+            if log is not None
+            else logging.getLogger(type(self).__name__)
+        )
 
         self.event = event
         self.inner_pad = inner_pad * u.second
@@ -53,29 +60,14 @@ class M1M3ICSAnalysis:
             f"measuredForce{i}" for i in range(self.number_of_hardpoints)
         ]
 
-        self.logger.info("Query datasets")
+        self.log.info("Query datasets")
         self.df = self.query_dataset()
 
-        self.logger.info("Calculate statistics")
+        self.log.info("Calculate statistics")
         self.stats = self.get_stats()
 
-        self.logger.info("Pack results into a Series")
+        self.log.info("Pack results into a Series")
         self.stats = self.pack_stats_series()
-
-    def _make_logger(self) -> None:
-        """Create a logger object for the ICSAnalysis class."""
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        formatter.datefmt = "%Y-%m-%d %H:%M:%S"
-
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.ERROR)
-        handler.setFormatter(formatter)
-
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.addHandler(handler)
 
     def find_stable_region(self) -> tuple[Time, Time]:
         """
@@ -114,7 +106,7 @@ class M1M3ICSAnalysis:
         -------
         pd.DataFrame
         """
-        self.logger.info("Querying dataset: m1m3 hp meadures forces")
+        self.log.info("Querying dataset: m1m3 hp meadures forces")
         hp_measured_forces = getEfdData(
             self.client,
             "lsst.sal.MTM1M3.hardpointActuatorData",
@@ -125,7 +117,7 @@ class M1M3ICSAnalysis:
             warn=False,
         )
 
-        self.logger.info("Querying dataset: mtmount azimuth torque and velocity")
+        self.log.info("Querying dataset: mtmount azimuth torque and velocity")
         tma_az = getEfdData(
             self.client,
             "lsst.sal.MTMount.azimuth",
@@ -148,7 +140,7 @@ class M1M3ICSAnalysis:
         tma_az.set_index("timestamp", inplace=True)
         tma_az.index = tma_az.index.tz_localize("UTC")
 
-        self.logger.info("Querying dataset: mtmount elevation torque and velocity")
+        self.log.info("Querying dataset: mtmount elevation torque and velocity")
         tma_el = getEfdData(
             self.client,
             "lsst.sal.MTMount.elevation",
@@ -211,14 +203,14 @@ class M1M3ICSAnalysis:
         full_slew_stats = pd.DataFrame(
             data=[self.get_slew_minmax(self.df[col]) for col in cols], index=cols
         )
-        self.logger.info("Find stable time window")
+        self.log.info("Find stable time window")
         begin, end = self.find_stable_region()
 
-        self.logger.debug("Update begin and end times")
+        self.log.debug("Update begin and end times")
         begin = begin + self.inner_pad
         end = end - self.inner_pad
 
-        self.logger.debug("Calculate statistics in stable time window")
+        self.log.debug("Calculate statistics in stable time window")
         stable_slew_stats = pd.DataFrame(
             data=[
                 self.get_stats_in_torqueless_interval(
@@ -229,7 +221,7 @@ class M1M3ICSAnalysis:
             index=cols,
         )
 
-        self.logger.debug("Concatenate statistics")
+        self.log.debug("Concatenate statistics")
         stats = pd.concat((full_slew_stats, stable_slew_stats), axis=1)
 
         return stats
@@ -307,10 +299,10 @@ class M1M3ICSAnalysis:
             DataFrame.
         """
         if isinstance(self.stats, pd.Series):
-            self.logger.info("Stats are already packed into a Series.")
+            self.log.info("Stats are already packed into a Series.")
             return self.stats
 
-        self.logger.info("Packing stats into a Series.")
+        self.log.info("Packing stats into a Series.")
         df = self.stats.transpose()
 
         # Define the prefix patterns
@@ -376,7 +368,9 @@ def find_adjacent_true_regions(
     return regions
 
 
-def get_tma_slew_event(day_obs: int, seq_num: int) -> TMAEvent:
+def get_tma_slew_event(
+    day_obs: int, seq_num: int, log: logging.Logger | None = None
+) -> TMAEvent:
     """
     Retrieve all the Telescope Mount Assembly (TMA) slew events in a day and
     select the one that matches the specified sequence number.
@@ -402,30 +396,22 @@ def get_tma_slew_event(day_obs: int, seq_num: int) -> TMAEvent:
     ValueError
         If no events matching the seq_num are found for day_obs.
     """
-    logger.info(f"Query events in {day_obs}")
+    log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
+
+    log.info(f"Query events in {day_obs}")
     events = event_maker.getEvents(day_obs)
 
     if len(events) == 0:
         raise ValueError(f"Could not find any events for {day_obs}. ")
 
-    logger.info(f"Found {len(events)} events.")
-    single_event = [e for e in events if e.seqNum == seq_num]
+    log.info(f"Found {len(events)} events.")
 
-    logger.info(f"Found {len(single_event)} matching event(s).")
-    if len(single_event) > 1:
+    if seq_num <= len(events):
+        return events[seq_num]
+    else:
         raise ValueError(
-            f"Expected a single event for {day_obs}. "
-            f"Found {len(single_event)} events."
+            f"{seq_num=} is out of range -" f"{day_obs=} only has {len(events)} events"
         )
-
-    if len(single_event) == 0:
-        raise ValueError(
-            f"Could not find any events for {day_obs} day_obs "
-            f" that match {seq_num} seq_num."
-        )
-
-    assert single_event[0].seqNum == seq_num
-    return single_event[0]
 
 
 def evaluate_m1m3_ics_single_slew(
@@ -434,7 +420,7 @@ def evaluate_m1m3_ics_single_slew(
     inner_pad: float = 1.0,
     outer_pad: float = 1.0,
     n_sigma: float = 1.0,
-    logger: logging.Logger | None = None,
+    log: logging.Logger | None = None,
 ) -> M1M3ICSAnalysis:
     """
     Evaluate the M1M3 Inertia Compensation System in a single slew with a
@@ -452,55 +438,29 @@ def evaluate_m1m3_ics_single_slew(
     InertiaCompensationSystemAnalysis
         Object containing the results of the analysis.
     """
-    logger.info("Retrieving TMA slew event.")  # type: ignore
+    log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
+
+    log.info("Retrieving TMA slew event.")  # type: ignore
     event = get_tma_slew_event(day_obs, seq_number)
 
-    logger.info("Start inertia compensation system analysis.")  # type: ignore
+    log.info("Start inertia compensation system analysis.")  # type: ignore
     event = get_tma_slew_event(day_obs, seq_number)
-    logger.info("Start inertia compensation system analysis.")  # type: ignore
+    log.info("Start inertia compensation system analysis.")  # type: ignore
     performance_analysis = M1M3ICSAnalysis(
         event,
         inner_pad=inner_pad,
         outer_pad=outer_pad,
         n_sigma=n_sigma,
-        logger=logger,
+        log=log,
     )
 
     return performance_analysis
 
 
-def create_logger(name: str) -> logging.Logger:
-    """
-    Create a logger object with the specified name and returns it.
-
-    Parameters
-    ----------
-    name : str
-        The name of the logger object.
-
-    Returns
-    -------
-    logger : logging.Logger
-        The logger object with the specified name.
-    """
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    formatter.datefmt = "%Y-%m-%d %H:%M:%S"
-
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.ERROR)
-    handler.setFormatter(formatter)
-
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
-
-    return logger
-
-
 if __name__ == "__main__":
-    logger = create_logger("M1M3ICSAnalysis")
-    logger.info("Start")
-    results = evaluate_m1m3_ics_single_slew(20230802, 38, logger=logger)
+    log = create_logger("M1M3ICSAnalysis")
+    log.info("Start")
+    event_maker = TMAEventMaker()
+    results = evaluate_m1m3_ics_single_slew(20230802, 38, log=log)
     inertia_compensation_system.plot_hp_measured_data(results)
-    logger.info("End")
+    log.info("End")

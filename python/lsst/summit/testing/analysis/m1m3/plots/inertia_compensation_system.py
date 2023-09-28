@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.time import Time
+from lsst.summit.testing.analysis.m1m3.inertia_compensation_system import (
+    M1M3ICSAnalysis,
+)
 
 
 def plot_hp_data(ax: plt.Axes, data: pd.Series | list, label: str) -> list[plt.Line2D]:
@@ -85,7 +88,9 @@ def mark_padded_slew_begin_end(ax: plt.Axes, begin: Time, end: Time) -> plt.Line
     return line
 
 
-def customize_hp_plot(ax: plt.Axes, dataset: object, lines: list[plt.Line2D]) -> None:
+def customize_hp_plot(
+    ax: plt.Axes, dataset: M1M3ICSAnalysis, lines: list[plt.Line2D]
+) -> None:
     """
     Customize the appearance of the hardpoint plot.
 
@@ -93,7 +98,7 @@ def customize_hp_plot(ax: plt.Axes, dataset: object, lines: list[plt.Line2D]) ->
     ----------
     ax : matplotlib.axes._axes.Axes
         The axes of the plot to be customized.
-    dataset : object
+    dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     lines : list
         The list of Line2D objects representing the plotted data lines.
@@ -113,7 +118,7 @@ def customize_hp_plot(ax: plt.Axes, dataset: object, lines: list[plt.Line2D]) ->
     ax.legend(ncol=4, handles=lines)
 
 
-def plot_velocity_data(ax: plt.Axes, dataset: object) -> None:
+def plot_velocity_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
     """
     Plot the azimuth and elevation velocities on the given axes.
 
@@ -121,7 +126,7 @@ def plot_velocity_data(ax: plt.Axes, dataset: object) -> None:
     ----------
     ax : matplotlib.axes._axes.Axes
         The axes on which the velocity data is plotted.
-    dataset : object
+    dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     """
     ax.plot(dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity")  # type: ignore
@@ -131,7 +136,7 @@ def plot_velocity_data(ax: plt.Axes, dataset: object) -> None:
     ax.legend(ncol=2)
 
 
-def plot_torque_data(ax: plt.Axes, dataset: object) -> None:
+def plot_torque_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
     """
     Plot the azimuth and elevation torques on the given axes.
 
@@ -139,7 +144,7 @@ def plot_torque_data(ax: plt.Axes, dataset: object) -> None:
     ----------
     ax : matplotlib.axes._axes.Axes
         The axes on which the torque data is plotted.
-    dataset : object
+    dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     """
     ax.plot(dataset.df["az_actual_torque"], color="firebrick", label="Az Torque")  # type: ignore
@@ -204,13 +209,13 @@ def finalize_and_save_figure(fig: plt.figure, name: str) -> None:
     plt.show()
 
 
-def plot_hp_measured_data(dataset: object) -> None:
+def plot_hp_measured_data(dataset: M1M3ICSAnalysis) -> None:
     """
     Create and plot hardpoint measured data, velocity, and torque on subplots.
 
     Parameters
     ----------
-    dataset : object
+    dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     """
     figure_name = (
