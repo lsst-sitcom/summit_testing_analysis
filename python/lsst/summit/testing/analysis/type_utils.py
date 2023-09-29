@@ -22,7 +22,7 @@ class Event(Protocol):
 
 
 class M1M3ICSAnalysis(Protocol):
-    """M1M3ICSAnalysis"""
+    """M1M3ICSAnalysis."""
 
     @property
     def event(self) -> Event:
