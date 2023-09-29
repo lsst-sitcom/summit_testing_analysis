@@ -7,7 +7,7 @@ import pandas as pd
 from astropy import units as u
 from astropy.time import Time
 from lsst.summit.testing.analysis.utils import create_logger
-from lsst.summit.utils.efdUtils import getEfdData
+from lsst.summit.utils.efdUtils import EfdClient, getEfdData
 from lsst.summit.utils.tmaUtils import TMAEvent, TMAEventMaker
 from plots import inertia_compensation_system
 
@@ -25,6 +25,8 @@ class M1M3ICSAnalysis:
     ----------
     event : `lsst.summit.utils.tmaUtils.TMAEvent`
         Abtract representation of a slew event.
+    efd_client : EfdClient
+        Client to access the EFD.
     inner_pad : float, optional
         Time padding inside the stable time window of the slew.
     outer_pad : float, optional
@@ -38,6 +40,7 @@ class M1M3ICSAnalysis:
     def __init__(
         self,
         event: TMAEvent,
+        efd_client: EfdClient,
         inner_pad: float = 0.0,
         outer_pad: float = 0.0,
         n_sigma: float = 1.0,
@@ -53,7 +56,7 @@ class M1M3ICSAnalysis:
         self.inner_pad = inner_pad * u.second
         self.outer_pad = outer_pad * u.second
         self.n_sigma = n_sigma
-        self.client = event_maker.client
+        self.client = efd_client
 
         self.number_of_hardpoints = 6
         self.measured_forces_topics = [
@@ -417,6 +420,7 @@ def get_tma_slew_event(
 def evaluate_m1m3_ics_single_slew(
     day_obs: int,
     seq_number: int,
+    event_maker: TMAEventMaker,
     inner_pad: float = 1.0,
     outer_pad: float = 1.0,
     n_sigma: float = 1.0,
@@ -432,6 +436,16 @@ def evaluate_m1m3_ics_single_slew(
         Observation day in the YYYYMMDD format.
     seq_number : int
         Sequence number associated with the slew event.
+    event_maker : TMAEventMaker
+        Object to retrieve TMA events.
+    inner_pad : float, optional
+        Time padding inside the stable time window of the slew.
+    outer_pad : float, optional
+        Time padding outside the slew time window.
+    n_sigma : float, optional
+        Number of standard deviations to use for the stable region.
+    log : logging.Logger, optional
+        Logger object to use for logging messages.
 
     Returns
     -------
@@ -448,6 +462,7 @@ def evaluate_m1m3_ics_single_slew(
     log.info("Start inertia compensation system analysis.")  # type: ignore
     performance_analysis = M1M3ICSAnalysis(
         event,
+        event_maker.client,
         inner_pad=inner_pad,
         outer_pad=outer_pad,
         n_sigma=n_sigma,
@@ -461,6 +476,6 @@ if __name__ == "__main__":
     log = create_logger("M1M3ICSAnalysis")
     log.info("Start")
     event_maker = TMAEventMaker()
-    results = evaluate_m1m3_ics_single_slew(20230802, 38, log=log)
+    results = evaluate_m1m3_ics_single_slew(20230802, 38, event_maker, log=log)
     inertia_compensation_system.plot_hp_measured_data(results)
     log.info("End")
