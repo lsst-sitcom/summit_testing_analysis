@@ -115,7 +115,7 @@ def customize_hp_plot(
     ax.set_xlabel("Time [UTC]")
     ax.set_ylabel("HP Measured Forces [N]")
     ax.grid(":", alpha=0.2)
-    ax.legend(ncol=4, handles=lines)
+    ax.legend(ncol=4, handles=lines, fontsize="x-small")
 
 
 def plot_velocity_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
@@ -133,7 +133,7 @@ def plot_velocity_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
     ax.plot(dataset.df["el_actual_velocity"], color="teal", label="El Velocity")
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Velocity\n [deg/s]")
-    ax.legend(ncol=2, fontsize="small")
+    ax.legend(ncol=2, fontsize="x-small")
 
 
 def plot_torque_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
@@ -151,7 +151,7 @@ def plot_torque_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
     ax.plot(dataset.df["el_actual_torque"], color="salmon", label="El Torque")
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Torque\n [kN.m]")
-    ax.legend(ncol=2)
+    ax.legend(ncol=2, fontsize="x-small")
 
 
 def plot_stable_region(
@@ -218,8 +218,8 @@ def finalize_and_save_figure(
 
 def plot_hp_measured_data(
     dataset: M1M3ICSAnalysis,
-    dpi: float = 120,
-    figsize: tuple[float, float] = (9, 6),
+    dpi: float = 180,
+    figsize: tuple[float, float] = (15, 10),
     log: None | logging.Logger = None,
 ) -> None:
     """
