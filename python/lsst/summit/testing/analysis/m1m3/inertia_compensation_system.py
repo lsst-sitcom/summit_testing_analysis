@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 from astropy import units as u
 from astropy.time import Time
+from lsst.summit.testing.analysis.m1m3.plots import inertia_compensation_system
 from lsst.summit.testing.analysis.utils import create_logger
 from lsst.summit.utils.efdUtils import EfdClient, getEfdData
 from lsst.summit.utils.tmaUtils import TMAEvent, TMAEventMaker
-from plots import inertia_compensation_system
 
 __all__ = ["M1M3ICSAnalysis"]
 
@@ -371,52 +371,6 @@ def find_adjacent_true_regions(
     return regions
 
 
-def get_tma_slew_event(
-    day_obs: int, seq_num: int, log: logging.Logger | None = None
-) -> TMAEvent:
-    """
-    Retrieve all the Telescope Mount Assembly (TMA) slew events in a day and
-    select the one that matches the specified sequence number.
-
-    Parameters
-    ----------
-    day_obs : int
-        Observation day in the YYYYMMDD format.
-    seq_num : int
-        Sequence number associated with the slew event.
-
-    Returns
-    -------
-    single_event : lsst.summit.utils.tmaUtils.TMAEvent
-        A TMA slew events that occurred within the specified time range.
-
-    Raises
-    ------
-    ValueError
-        If no events are found for the provided day_obs.
-    ValueError
-        If more than one event matching the seq_num is found for day_obs.
-    ValueError
-        If no events matching the seq_num are found for day_obs.
-    """
-    log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
-
-    log.info(f"Query events in {day_obs}")
-    events = event_maker.getEvents(day_obs)
-
-    if len(events) == 0:
-        raise ValueError(f"Could not find any events for {day_obs}. ")
-
-    log.info(f"Found {len(events)} events.")
-
-    if seq_num <= len(events):
-        return events[seq_num]
-    else:
-        raise ValueError(
-            f"{seq_num=} is out of range -" f"{day_obs=} only has {len(events)} events"
-        )
-
-
 def evaluate_m1m3_ics_single_slew(
     day_obs: int,
     seq_number: int,
@@ -454,12 +408,12 @@ def evaluate_m1m3_ics_single_slew(
     """
     log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
 
-    log.info("Retrieving TMA slew event.")  # type: ignore
-    event = get_tma_slew_event(day_obs, seq_number)
+    log.info("Retrieving TMA slew event.")
+    event = event_maker.getEvent(day_obs, seq_number)
+    if event is None:
+        raise ValueError(f"Could not find event with {seq_number} in {day_obs}")
 
-    log.info("Start inertia compensation system analysis.")  # type: ignore
-    event = get_tma_slew_event(day_obs, seq_number)
-    log.info("Start inertia compensation system analysis.")  # type: ignore
+    log.info("Start inertia compensation system analysis.")
     performance_analysis = M1M3ICSAnalysis(
         event,
         event_maker.client,
@@ -477,5 +431,5 @@ if __name__ == "__main__":
     log.info("Start")
     event_maker = TMAEventMaker()
     results = evaluate_m1m3_ics_single_slew(20230802, 38, event_maker, log=log)
-    inertia_compensation_system.plot_hp_measured_data(results)
+    inertia_compensation_system.plot_hp_measured_data(results, log=log)
     log.info("End")

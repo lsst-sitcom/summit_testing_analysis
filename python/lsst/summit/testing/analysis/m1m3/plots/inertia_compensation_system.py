@@ -1,9 +1,9 @@
+import logging
+
 import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.time import Time
-from lsst.summit.testing.analysis.m1m3.inertia_compensation_system import (
-    M1M3ICSAnalysis,
-)
+from lsst.summit.testing.analysis.type_utils import M1M3ICSAnalysis
 
 
 def plot_hp_data(ax: plt.Axes, data: pd.Series | list, label: str) -> list[plt.Line2D]:
@@ -106,11 +106,11 @@ def customize_hp_plot(
     t_fmt = "%Y%m%d %H:%M:%S"
     ax.set_title(
         f"HP Measured Data\n "
-        f"DayObs {dataset.event.dayObs} "  # type: ignore
-        f"SeqNum {dataset.event.seqNum} "  # type: ignore
-        f"v{dataset.event.version}\n "  # type: ignore
-        f"{dataset.df.index[0].strftime(t_fmt)} - "  # type: ignore
-        f"{dataset.df.index[-1].strftime(t_fmt)}"  # type: ignore
+        f"DayObs {dataset.event.dayObs} "
+        f"SeqNum {dataset.event.seqNum} "
+        f"v{dataset.event.version}\n "
+        f"{dataset.df.index[0].strftime(t_fmt)} - "
+        f"{dataset.df.index[-1].strftime(t_fmt)}"
     )
     ax.set_xlabel("Time [UTC]")
     ax.set_ylabel("HP Measured Forces [N]")
@@ -129,11 +129,11 @@ def plot_velocity_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
     dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     """
-    ax.plot(dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity")  # type: ignore
-    ax.plot(dataset.df["el_actual_velocity"], color="teal", label="El Velocity")  # type: ignore
+    ax.plot(dataset.df["az_actual_velocity"], color="royalblue", label="Az Velocity")
+    ax.plot(dataset.df["el_actual_velocity"], color="teal", label="El Velocity")
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Velocity\n [deg/s]")
-    ax.legend(ncol=2)
+    ax.legend(ncol=2, fontsize="small")
 
 
 def plot_torque_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
@@ -147,8 +147,8 @@ def plot_torque_data(ax: plt.Axes, dataset: M1M3ICSAnalysis) -> None:
     dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     """
-    ax.plot(dataset.df["az_actual_torque"], color="firebrick", label="Az Torque")  # type: ignore
-    ax.plot(dataset.df["el_actual_torque"], color="salmon", label="El Torque")  # type: ignore
+    ax.plot(dataset.df["az_actual_torque"], color="firebrick", label="Az Torque")
+    ax.plot(dataset.df["el_actual_torque"], color="salmon", label="El Torque")
     ax.grid(":", alpha=0.2)
     ax.set_ylabel("Actual Torque\n [kN.m]")
     ax.legend(ncol=2)
@@ -186,7 +186,9 @@ def plot_stable_region(
     return span
 
 
-def finalize_and_save_figure(fig: plt.figure, name: str) -> None:
+def finalize_and_save_figure(
+    fig: plt.figure, name: str, log: None | logging.Logger = None
+) -> None:
     """
     Finalize the appearance of the figure and save it to a file.
 
@@ -197,19 +199,29 @@ def finalize_and_save_figure(fig: plt.figure, name: str) -> None:
     name : str
         The name of the file to which the figure is saved.
     """
+    log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
+
     fig.tight_layout()
-    fig.savefig(
+    plt.show()
+
+    filename = (
         name.replace("/", "")
         .replace("  ", "_")
         .replace(" ", "_")
         .replace(",", "")
         .replace("%", "pc")
     )
+    log.info(f"Saving figure to {filename}.png")
+    fig.savefig(filename)
+    log.info("Done")
 
-    plt.show()
 
-
-def plot_hp_measured_data(dataset: M1M3ICSAnalysis) -> None:
+def plot_hp_measured_data(
+    dataset: M1M3ICSAnalysis,
+    dpi: float = 120,
+    figsize: tuple[float, float] = (9, 6),
+    log: None | logging.Logger = None,
+) -> None:
     """
     Create and plot hardpoint measured data, velocity, and torque on subplots.
 
@@ -218,30 +230,35 @@ def plot_hp_measured_data(dataset: M1M3ICSAnalysis) -> None:
     dataset : M1M3ICSAnalysis
         The dataset object containing the data to be plotted and metadata.
     """
+    log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
+
     figure_name = (
         f"hp_measured_forces_"
-        f"{dataset.event.dayObs}_"  # type: ignore
-        f"sn{dataset.event.seqNum}_"  # type: ignore
-        f"v{dataset.event.version}"  # type: ignore
+        f"{dataset.event.dayObs}_"
+        f"sn{dataset.event.seqNum}_"
+        f"v{dataset.event.version}"
     )
+
+    fig = plt.figure(figure_name)
+    fig.clear()
 
     fig, (ax_hp, ax_tor, ax_vel) = plt.subplots(
         num=figure_name,
-        dpi=120,
-        figsize=(9, 6),
+        dpi=dpi,
+        figsize=figsize,
         nrows=3,
         sharex=True,
         height_ratios=[2, 1, 1],
     )
 
     lines = []
-    for hp in range(dataset.number_of_hardpoints):  # type: ignore
-        topic = dataset.measured_forces_topics[hp]  # type: ignore
-        line = plot_hp_data(ax_hp, dataset.df[topic], f"HP{hp+1}")  # type: ignore
+    for hp in range(dataset.number_of_hardpoints):
+        topic = dataset.measured_forces_topics[hp]
+        line = plot_hp_data(ax_hp, dataset.df[topic], f"HP{hp+1}")
         lines.extend(line)
 
-    slew_begin = Time(dataset.event.begin, scale="utc")  # type: ignore
-    slew_end = Time(dataset.event.end, scale="utc")  # type: ignore
+    slew_begin = Time(dataset.event.begin, scale="utc")
+    slew_end = Time(dataset.event.end, scale="utc")
 
     mark_slew_begin_end(ax_hp, slew_begin, slew_end)
     mark_slew_begin_end(ax_vel, slew_begin, slew_end)
@@ -249,20 +266,20 @@ def plot_hp_measured_data(dataset: M1M3ICSAnalysis) -> None:
     lines.append(line)
 
     mark_padded_slew_begin_end(
-        ax_hp, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad  # type: ignore
+        ax_hp, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad
     )
     mark_padded_slew_begin_end(
-        ax_vel, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad  # type: ignore
+        ax_vel, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad
     )
     line = mark_padded_slew_begin_end(
-        ax_tor, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad  # type: ignore
+        ax_tor, slew_begin - dataset.outer_pad, slew_end + dataset.outer_pad
     )
     lines.append(line)
 
-    stable_begin, stable_end = dataset.find_stable_region()  # type: ignore
+    stable_begin, stable_end = dataset.find_stable_region()
     stat_begin, stat_end = (
-        stable_begin + dataset.inner_pad,  # type: ignore
-        stable_end - dataset.inner_pad,  # type: ignore
+        stable_begin + dataset.inner_pad,
+        stable_end - dataset.inner_pad,
     )
 
     plot_velocity_data(ax_vel, dataset)
@@ -274,4 +291,6 @@ def plot_hp_measured_data(dataset: M1M3ICSAnalysis) -> None:
     lines.extend([span_stable, span_with_padding])
 
     customize_hp_plot(ax_hp, dataset, lines)
-    finalize_and_save_figure(fig, figure_name)
+    finalize_and_save_figure(fig, figure_name, log=log)
+
+    return fig
