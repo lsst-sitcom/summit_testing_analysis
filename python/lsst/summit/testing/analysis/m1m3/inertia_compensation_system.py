@@ -120,6 +120,12 @@ class M1M3ICSAnalysis:
             warn=False,
         )
 
+        self.log.debug(f"hp_measured_forces: {hp_measured_forces.index.size}")
+        if hp_measured_forces.index.size == 0:
+            raise ValueError(
+                f"No hard-point data found for event {self.event.seqNum} on {self.event.dayObs}"
+            )
+
         self.log.info("Querying dataset: mtmount azimuth torque and velocity")
         tma_az = getEfdData(
             self.client,
@@ -130,6 +136,12 @@ class M1M3ICSAnalysis:
             postPadding=self.outer_pad,
             warn=False,
         )
+
+        self.log.debug(f"tma_az: {tma_az.index.size}")
+        if tma_az.index.size == 0:
+            raise ValueError(
+                f"No TMA azimuth data found for event {self.event.seqNum} on {self.event.dayObs}"
+            )
 
         tma_az = tma_az.rename(
             columns={
@@ -154,6 +166,12 @@ class M1M3ICSAnalysis:
             warn=False,
         )
 
+        self.log.debug(f"tma_el: {tma_el.index.size}")
+        if tma_el.index.size == 0:
+            raise ValueError(
+                f"No TMA elevation data found for event {self.event.seqNum} on {self.event.dayObs}"
+            )
+
         tma_el = tma_el.rename(
             columns={
                 "actualTorque": "el_actual_torque",
@@ -173,6 +191,7 @@ class M1M3ICSAnalysis:
             "direction": "nearest",
         }
 
+        self.log.info("Merging datasets")
         merged_df = pd.merge_asof(hp_measured_forces, tma_az, **merge_cfg)
         merged_df = pd.merge_asof(merged_df, tma_el, **merge_cfg)
         merged_df[["az_actual_torque", "el_actual_torque"]] = (
@@ -426,10 +445,83 @@ def evaluate_m1m3_ics_single_slew(
     return performance_analysis
 
 
+def evaluate_m1m3_ics_day_obs(
+    day_obs: int,
+    event_maker: TMAEventMaker,
+    inner_pad: float = 1.0,
+    outer_pad: float = 1.0,
+    n_sigma: float = 1.0,
+    log: logging.Logger | None = None,
+) -> pd.DataFrame:
+    """
+    Evaluate the M1M3 Inertia Compensation System in every slew event during a
+    `dayObs`.
+
+    Parameters
+    ----------
+    day_obs : int
+        Observation day in the YYYYMMDD format.
+    event_maker : TMAEventMaker
+        Object to retrieve TMA events.
+    inner_pad : float, optional
+        Time padding inside the stable time window of the slew.
+    outer_pad : float, optional
+        Time padding outside the slew time window.
+    n_sigma : float, optional
+        Number of standard deviations to use for the stable region.
+    log : logging.Logger, optional
+        Logger object to use for logging messages.
+
+    Returns
+    -------
+    pd.DataFrame
+        Data-frame containing statistical summary of the analysis.
+    """
+    log = log.getChild(__name__) if log is not None else logging.getLogger(__name__)
+    log.setLevel(logging.DEBUG)
+
+    log.info("Retrieving TMA slew events.")
+    events = event_maker.getEvents(day_obs)
+    log.info(f"Found {len(events)} events for day {day_obs}")
+
+    stats = None
+    for event in events:
+        log.info(f"Start inertia compensation system analysis on {event.seqNum}.")
+
+        try:
+            performance_analysis = M1M3ICSAnalysis(
+                event,
+                event_maker.client,
+                inner_pad=inner_pad,
+                outer_pad=outer_pad,
+                n_sigma=n_sigma,
+                log=log,
+            )
+            log.info(
+                f"Complete inertia compensation system analysis on {event.seqNum}."
+            )
+        except ValueError:
+            log.warning(f"Found an empty data  {event.seqNum} on {event.dayObs}")
+            continue
+
+        if stats is None:
+            stats = performance_analysis.stats
+        else:
+            stats = pd.concat((stats.T, performance_analysis.stats), axis=1).T
+
+    assert isinstance(stats, pd.DataFrame)
+    stats = stats.set_index("seqNum", drop=False)
+    return stats
+
+
 if __name__ == "__main__":
     log = create_logger("M1M3ICSAnalysis")
-    log.info("Start")
+    log.info("Start - Single Slew")
     event_maker = TMAEventMaker()
     results = evaluate_m1m3_ics_single_slew(20230802, 38, event_maker, log=log)
     inertia_compensation_system.plot_hp_measured_data(results, log=log)
-    log.info("End")
+    log.info("End - Single Slew")
+
+    log.info("Start - Day Obs")
+    results = evaluate_m1m3_ics_day_obs(20230802, event_maker, log=log)
+    log.info("End - Day Obs")
