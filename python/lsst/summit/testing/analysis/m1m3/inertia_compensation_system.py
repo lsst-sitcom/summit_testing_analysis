@@ -122,6 +122,9 @@ class M1M3ICSAnalysis:
 
         self.log.debug(f"hp_measured_forces: {hp_measured_forces.index.size}")
         if hp_measured_forces.index.size == 0:
+            self.log.error(
+                f"No hard-point data found for event {self.event.seqNum} on {self.event.dayObs}"
+            )
             raise ValueError(
                 f"No hard-point data found for event {self.event.seqNum} on {self.event.dayObs}"
             )
@@ -139,6 +142,9 @@ class M1M3ICSAnalysis:
 
         self.log.debug(f"tma_az: {tma_az.index.size}")
         if tma_az.index.size == 0:
+            self.log.error(
+                f"No TMA azimuth data found for event {self.event.seqNum} on {self.event.dayObs}"
+            )
             raise ValueError(
                 f"No TMA azimuth data found for event {self.event.seqNum} on {self.event.dayObs}"
             )
@@ -168,6 +174,9 @@ class M1M3ICSAnalysis:
 
         self.log.debug(f"tma_el: {tma_el.index.size}")
         if tma_el.index.size == 0:
+            self.log.error(
+                f"No TMA elevation data found for event {self.event.seqNum} on {self.event.dayObs}"
+            )
             raise ValueError(
                 f"No TMA elevation data found for event {self.event.seqNum} on {self.event.dayObs}"
             )
@@ -501,7 +510,7 @@ def evaluate_m1m3_ics_day_obs(
                 f"Complete inertia compensation system analysis on {event.seqNum}."
             )
         except ValueError:
-            log.warning(f"Found an empty data  {event.seqNum} on {event.dayObs}")
+            log.warning(f"Missing data for {event.seqNum} on {event.dayObs}")
             continue
 
         if stats is None:
