@@ -63,7 +63,7 @@ class M1M3ICSAnalysis:
             f"measuredForce{i}" for i in range(self.number_of_hardpoints)
         ]
 
-        self.log.info("Query datasets")
+        self.log.info(f"Query datasets for {event.dayObs} {event.seqNum}")
         self.df = self.query_dataset()
 
         self.log.info("Calculate statistics")
@@ -109,90 +109,61 @@ class M1M3ICSAnalysis:
         -------
         pd.DataFrame
         """
-        self.log.info("Querying dataset: m1m3 hp meadures forces")
-        hp_measured_forces = getEfdData(
-            self.client,
-            "lsst.sal.MTM1M3.hardpointActuatorData",
-            columns=self.measured_forces_topics,
-            event=self.event,
-            prePadding=self.outer_pad,
-            postPadding=self.outer_pad,
-            warn=False,
-        )
+        evt = self.event
+        query_config = {
+            "hp_measured_forces": {
+                "topic": "lsst.sal.MTM1M3.hardpointActuatorData",
+                "columns": self.measured_forces_topics,
+                "err_msg": f"No hard-point data found for event {evt.seqNum} on {evt.dayObs}",
+            },
+            "tma_az": {
+                "topic": "lsst.sal.MTMount.azimuth",
+                "columns": ["timestamp", "actualTorque", "actualVelocity"],
+                "err_msg": f"No TMA azimuth data found for event {evt.seqNum} on {evt.dayObs}",
+                "reset_index": True,
+                "rename_columns": {
+                    "actualTorque": "az_actual_torque",
+                    "actualVelocity": "az_actual_velocity",
+                },
+            },
+            "tma_el": {
+                "topic": "lsst.sal.MTMount.elevation",
+                "columns": ["timestamp", "actualTorque", "actualVelocity"],
+                "err_msg": f"No TMA elevation data found for event {evt.seqNum} on {evt.dayObs}",
+                "reset_index": True,
+                "rename_columns": {
+                    "actualTorque": "el_actual_torque",
+                    "actualVelocity": "el_actual_velocity",
+                },
+            },
+        }
 
-        self.log.debug(f"hp_measured_forces: {hp_measured_forces.index.size}")
-        if hp_measured_forces.index.size == 0:
-            self.log.error(
-                f"No hard-point data found for event {self.event.seqNum} on {self.event.dayObs}"
-            )
-            raise ValueError(
-                f"No hard-point data found for event {self.event.seqNum} on {self.event.dayObs}"
-            )
+        # Query datasets
+        queries = {key: self.query_efd_data(**cfg) for key, cfg in query_config.items()}  # type: ignore
 
-        self.log.info("Querying dataset: mtmount azimuth torque and velocity")
-        tma_az = getEfdData(
-            self.client,
-            "lsst.sal.MTMount.azimuth",
-            columns=["timestamp", "actualTorque", "actualVelocity"],
-            event=self.event,
-            prePadding=self.outer_pad,
-            postPadding=self.outer_pad,
-            warn=False,
-        )
+        # Merge datasets
+        df = self.merge_datasets(queries)
 
-        self.log.debug(f"tma_az: {tma_az.index.size}")
-        if tma_az.index.size == 0:
-            self.log.error(
-                f"No TMA azimuth data found for event {self.event.seqNum} on {self.event.dayObs}"
-            )
-            raise ValueError(
-                f"No TMA azimuth data found for event {self.event.seqNum} on {self.event.dayObs}"
-            )
+        # Convert torque from Nm to kNm
+        cols = ["az_actual_torque", "el_actual_torque"]
+        df.loc[:, cols] *= 1e-3
 
-        tma_az = tma_az.rename(
-            columns={
-                "actualTorque": "az_actual_torque",
-                "actualVelocity": "az_actual_velocity",
-            }
-        )
-        tma_az["timestamp"] = Time(
-            tma_az["timestamp"], format="unix_tai", scale="utc"
-        ).datetime
-        tma_az.set_index("timestamp", inplace=True)
-        tma_az.index = tma_az.index.tz_localize("UTC")
+        return df
 
-        self.log.info("Querying dataset: mtmount elevation torque and velocity")
-        tma_el = getEfdData(
-            self.client,
-            "lsst.sal.MTMount.elevation",
-            columns=["timestamp", "actualTorque", "actualVelocity"],
-            event=self.event,
-            prePadding=self.outer_pad,
-            postPadding=self.outer_pad,
-            warn=False,
-        )
+    def merge_datasets(self, queries: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """
+        Merge multiple datasets based on their timestamps.
 
-        self.log.debug(f"tma_el: {tma_el.index.size}")
-        if tma_el.index.size == 0:
-            self.log.error(
-                f"No TMA elevation data found for event {self.event.seqNum} on {self.event.dayObs}"
-            )
-            raise ValueError(
-                f"No TMA elevation data found for event {self.event.seqNum} on {self.event.dayObs}"
-            )
+        Parameters
+        ----------
+        queries (dict[str, pd.DataFrame]):
+            A dictionary of dataframes to be merged.
 
-        tma_el = tma_el.rename(
-            columns={
-                "actualTorque": "el_actual_torque",
-                "actualVelocity": "el_actual_velocity",
-            }
-        )
-        tma_el["timestamp"] = Time(
-            tma_el["timestamp"], format="unix_tai", scale="utc"
-        ).datetime
-        tma_el.set_index("timestamp", inplace=True)
-        tma_el.index = tma_el.index.tz_localize("UTC")
-
+        Returns
+        -------
+        df : pd.DataFrame
+            A merged dataframe.
+        """
         merge_cfg = {
             "left_index": True,
             "right_index": True,
@@ -201,13 +172,70 @@ class M1M3ICSAnalysis:
         }
 
         self.log.info("Merging datasets")
-        merged_df = pd.merge_asof(hp_measured_forces, tma_az, **merge_cfg)
-        merged_df = pd.merge_asof(merged_df, tma_el, **merge_cfg)
-        merged_df[["az_actual_torque", "el_actual_torque"]] = (
-            1e-3 * merged_df[["az_actual_torque", "el_actual_torque"]]
-        )
+        df_list = [df for _, df in queries.items()]
+        merged_df = df_list[0]
+
+        for df in df_list[1:]:
+            merged_df = pd.merge_asof(merged_df, df, **merge_cfg)
 
         return merged_df
+
+    def query_efd_data(
+        self,
+        topic: str,
+        columns: list[str],
+        err_msg: str,
+        reset_index: bool = False,
+        rename_columns: dict | None = None,
+    ) -> pd.DataFrame:
+        """
+        Query the EFD data for a given topic and return a dataframe.
+
+        Parameters
+        ----------
+        topic : str
+            The topic to query.
+        columns : List[str]
+            The columns to query.
+        err_msg : str
+            The error message to raise if no data is found.
+        reset_index : bool, optional
+            Whether to reset the index of the dataframe.
+        rename_columns : dict, optional
+            A dictionary of column names to rename.
+
+        Returns
+        -------
+        df : pd.DataFrame
+            A dataframe containing the queried data.
+        """
+        self.log.info(f"Querying dataset: {topic}")
+        df = getEfdData(
+            self.client,
+            topic,
+            columns=columns,
+            event=self.event,
+            prePadding=self.outer_pad,
+            postPadding=self.outer_pad,
+            warn=False,
+        )
+
+        self.log.debug(f"Queried {df.index.size} rows from {topic}")
+        if df.index.size == 0:
+            self.log.error(err_msg)
+            raise ValueError(err_msg)
+
+        if rename_columns is not None:
+            df = df.rename(columns=rename_columns)
+
+        if reset_index:
+            df["timestamp"] = Time(
+                df["timestamp"], format="unix_tai", scale="utc"
+            ).datetime
+            df.set_index("timestamp", inplace=True)
+            df.index = df.index.tz_localize("UTC")
+
+        return df
 
     def get_midppoint(self) -> Time:
         """Return the halfway point between begin and end."""
@@ -241,7 +269,7 @@ class M1M3ICSAnalysis:
         begin = begin + self.inner_pad
         end = end - self.inner_pad
 
-        self.log.debug("Calculate statistics in stable time window")
+        self.log.debug("Calculate statistics in stable time window from M1M3")
         stable_slew_stats = pd.DataFrame(
             data=[
                 self.get_stats_in_torqueless_interval(
@@ -352,12 +380,18 @@ class M1M3ICSAnalysis:
         result_series.index = index_prefixes
 
         # Append the event information to the Series
+        event_keys = [
+            "dayObs",
+            "seqNum",
+            "version",
+            "begin",
+            "end",
+            "duration",
+            "type",
+            "endReason",
+        ]
         event_dict = vars(self.event)
-        event_dict = {
-            key: val
-            for key, val in event_dict.items()
-            if key in ["dayObs", "seqNum", "version"]
-        }
+        event_dict = {key: val for key, val in event_dict.items() if key in event_keys}
 
         # Create a pandas Series from the dictionary
         event_series = pd.Series(event_dict)
@@ -524,13 +558,17 @@ def evaluate_m1m3_ics_day_obs(
 
 
 if __name__ == "__main__":
+    dayObs = 20230802
+
     log = create_logger("M1M3ICSAnalysis")
     log.info("Start - Single Slew")
     event_maker = TMAEventMaker()
-    results = evaluate_m1m3_ics_single_slew(20230802, 38, event_maker, log=log)
+    results = evaluate_m1m3_ics_single_slew(dayObs, 38, event_maker, log=log)
+    log.debug(f"Result Series:\n{results.stats}")
     inertia_compensation_system.plot_hp_measured_data(results, log=log)
     log.info("End - Single Slew")
 
     log.info("Start - Day Obs")
-    results = evaluate_m1m3_ics_day_obs(20230802, event_maker, log=log)
+    results_df = evaluate_m1m3_ics_day_obs(dayObs, event_maker, log=log)
+    results_df.to_csv(f"m1m3_ics_{dayObs}.csv", index=False)
     log.info("End - Day Obs")
