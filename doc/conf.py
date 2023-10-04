@@ -7,8 +7,7 @@ https://developer.lsst.io/stack/building-single-package-docs.html
 
 from documenteer.conf.pipelinespkg import *  # noqa F403
 
-
 project = "summit_testing_analysis"
-html_theme_options["logotext"] = project   # noqa F405
+html_theme_options["logotext"] = project  # type: ignore # noqa
 html_title = project
 html_short_title = project
